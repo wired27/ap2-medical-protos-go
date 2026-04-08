@@ -1,0 +1,62 @@
+name: Generate Go Proto Files
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [generate-protos]
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout generator repository
+        uses: actions/checkout@v4
+
+      - name: Clone proto files repository
+        run: gh repo clone ilarvne/ap2-medical-protos proto-source
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+
+      - name: Set up protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '30.2'
+
+      - name: Install generators
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.10
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+
+      - name: Generate Go code from proto files
+        run: |
+          rm -rf doctor appointment
+          cd proto-source/proto
+          protoc \
+            -I . \
+            --go_out=../.. --go_opt=paths=source_relative \
+            --go-grpc_out=../.. --go-grpc_opt=paths=source_relative \
+            doctor/v1/doctor.proto \
+            appointment/v1/appointment.proto
+          cd ../..
+          gofmt -w doctor/v1/*.go appointment/v1/*.go
+
+      - name: Commit and push generated code
+        run: |
+          git config user.name "ilarvne"
+          git config user.email "ilarvne@users.noreply.github.com"
+          git add .
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: regenerate protobuf go files"
+          git push origin HEAD:main
