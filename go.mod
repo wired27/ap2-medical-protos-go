@@ -1,4 +1,4 @@
-module github.com/ilarvne/ap2-medical-protos-go
+module github.com/wired27/ap2-medical-protos-go
 
 go 1.25.0
 
